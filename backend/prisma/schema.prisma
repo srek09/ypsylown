@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// --- ENUMS ---
+
+enum Role {
+  ADMIN
+  SCANNER
+}
+
+enum AssetStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+  MISSING
+}
+
+enum AuditStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+// --- MODELS ---
+
+model User {
+  id             Int            @id @default(autoincrement())
+  email          String         @unique
+  passwordHash   String
+  name           String
+  role           Role           @default(SCANNER)
+  createdAt      DateTime       @default(now())
+  
+  // Relations
+  createdAudits  AuditSession[] @relation("AuditCreator")
+  performedScans AuditScan[]    @relation("ScanPerformer")
+}
+
+model AssetInstance {
+  id                   Int          @id @default(autoincrement())
+  uuid                 String       @unique @default(uuid()) // The QR Code payload
+  name                 String       @default("Ismeretlen eszköz")
+  category             String       @default("Egyéb")
+  description          String?
+  serialNumber         String?
+  status               AssetStatus  @default(AVAILABLE)
+  location             String?      
+  lastAuditUnaccounted Boolean      @default(false)
+  
+  scans                AuditScan[]
+}
+
+model AuditSession {
+  id             Int         @id @default(autoincrement())
+  name           String
+  dueDate        DateTime?
+  targetLocation String?
+  status         AuditStatus @default(IN_PROGRESS)
+  createdById    Int
+  createdAt      DateTime    @default(now())
+  completedAt    DateTime?
+  finalPercentage Int?
+
+  // Relations
+  createdBy      User        @relation("AuditCreator", fields: [createdById], references: [id])
+  scans          AuditScan[]
+}
+
+model AuditScan {
+  id          Int      @id @default(autoincrement())
+  sessionId   Int
+  assetId     Int
+  scannedById Int
+  scannedAt   DateTime @default(now())  
+  // Relations
+  session     AuditSession  @relation(fields: [sessionId], references: [id])
+  asset       AssetInstance @relation(fields: [assetId], references: [id])
+  scannedBy   User          @relation("ScanPerformer", fields: [scannedById], references: [id])
+
+  @@unique([sessionId, assetId])
+}
